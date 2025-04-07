@@ -56,7 +56,7 @@ class AppDrawer extends StatelessWidget {
                     _buildSubMenuItem('Sales Return', () => _navigateTo(context, '/salesReturn')),
                     _buildSubMenuItem('Credit Note', () => _navigateTo(context, '/creditNote')),
                     _buildSubMenuItem('Delivery Challan', () => _navigateTo(context, '/deliveryChallan')),
-                    _buildSubMenuItem('Proforma Invoice', () => _navigateTo(context, '/createProformaInvoice')),
+                    _buildSubMenuItem('Proforma Invoice', () => _navigateTo(context, '/proformaList')),
                   ],
                 ),
 

@@ -1,6 +1,7 @@
 import 'package:distribution_management/product/add_product.dart';
 import 'package:distribution_management/product/product.dart';
 import 'package:distribution_management/sales/proforma_invoice/create_proforma_invoive.dart';
+import 'package:distribution_management/sales/proforma_invoice/proforma_list.dart';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -27,6 +28,7 @@ class MyApp extends StatelessWidget {
         '/products': (context) => const ProductPage(),
         '/add_products': (context) => const AddProductPage(),
         '/createProformaInvoice':(context)=>const CreateProformaInvoice(),
+        '/proformaList':(context)=> ProformaListPage(),
      
       },
     );

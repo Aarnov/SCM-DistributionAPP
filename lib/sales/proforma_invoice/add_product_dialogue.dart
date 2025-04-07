@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
-
 class AddProductDialog extends StatefulWidget {
   final Function(Map<String, dynamic>) onProductSelected;
   final List<Map<String, dynamic>> selectedProducts;
@@ -22,54 +20,45 @@ class _AddProductDialogState extends State<AddProductDialog> {
   }
 
   void _showQuantityDialog(Map<String, dynamic> product) {
-    TextEditingController quantityController = TextEditingController(text: "1");
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Select Quantity for ${product['ProductName']}"),
-          content: TextField(
-            controller: quantityController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: "Enter Quantity",
-              border: OutlineInputBorder(),
-            ),
+  TextEditingController quantityController = TextEditingController(text: "1");
+
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text("Select Quantity for ${product['name']}"),
+        content: TextField(
+          controller: quantityController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: "Enter Quantity",
+            border: OutlineInputBorder(),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: () {
-                int quantity = int.tryParse(quantityController.text) ?? 1;
-                setState(() {
-                  bool exists = false;
-                  for (var item in widget.selectedProducts) {
-                    if (item['id'] == product['id']) {
-                      item['quantity'] += quantity;
-                      item['subtotal'] = item['quantity'] * item['mrp'] * (1 + item['tax'] / 100);
-                      exists = true;
-                      break;
-                    }
-                  }
-                  if (!exists) {
-                    product['quantity'] = quantity;
-                    product['subtotal'] = quantity * product['mrp'] * (1 + product['tax'] / 100);
-                    widget.onProductSelected(product);
-                  }
-                });
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              child: const Text("Confirm"),
-            ),
-          ],
-        );
-      },
-    );
-  }
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              int quantity = int.tryParse(quantityController.text) ?? 1;
+              product['quantity'] = quantity;
+
+              // ✅ Send product back to main UI to be processed
+              widget.onProductSelected(product);
+
+              // Close both dialogs
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            child: const Text("Confirm"),
+          ),
+        ],
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -121,19 +110,19 @@ class _AddProductDialogState extends State<AddProductDialog> {
                           String productId = product.id;
                           String productName = product['ProductName'];
                           String hsnCode = product['HSNCode'];
-                          double mrp = product['SalePriceInclTax'];
+                          double priceWithoutGST = (product['SalePriceInclTax'] as num).toDouble();
                           int taxPercent = product['TaxPercemtInSalePrice'];
 
                           return ListTile(
                             title: Text(productName),
-                            subtitle: Text("HSN: $hsnCode | MRP: ₹$mrp"),
+                            subtitle: Text("HSN: $hsnCode | Price: ₹$priceWithoutGST"),
                             onTap: () {
                               _showQuantityDialog({
                                 'id': productId,
                                 'name': productName,
                                 'hsn': hsnCode,
-                                'mrp': mrp,
-                                'tax': taxPercent,
+                                'priceWithoutGST': priceWithoutGST,
+                                'gstPercent': taxPercent,
                               });
                             },
                           );
