@@ -1,5 +1,5 @@
 import 'package:distribution_management/sales/proforma_invoice/create_proforma_invoive.dart';
-import 'package:distribution_management/sales/proforma_invoice/edit_proforma_invoice';
+import 'package:distribution_management/sales/proforma_invoice/edit_proforma_invoice.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -125,7 +125,7 @@ class _ProformaListPageState extends State<ProformaListPage> {
                                       Navigator.push(
                                         context,
                                        MaterialPageRoute(
-                builder: (context) => EditProformaInvoice(proformaId: data['ProformaNo']),
+                builder: (context) => EditProformaInvoice(proformaData: data),
               ),
                                       );
                                     },
