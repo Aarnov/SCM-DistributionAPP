@@ -39,12 +39,19 @@ DateTime updateExpiryDate({
 /// Handles customer selection using the customer selection dialog.
 void editCustomer({
   required BuildContext context,
+  required String proformaNo,
   required Function(Map<String, dynamic>) onCustomerSelected,
 }) {
   showCustomerSelectionDialog(
     context: context,
     searchController: TextEditingController(), // Temporary search controller
-    addCustomer: (id, name, mobile, email, billingCity, billingState, billingCountry, shippingCity, shippingState, shippingCountry, pancard, gstNo) {
+    addCustomer: (id, name, mobile, email, billingCity, billingState, billingCountry, shippingCity, shippingState, shippingCountry, pancard, gstNo) async {
+      // Update the PartyId in ProformaMaster
+      await FirebaseFirestore.instance.collection('ProformaMaster').doc(proformaNo).update({
+        'PartyId': id,
+      });
+
+      // Pass the selected customer details back
       onCustomerSelected({
         'id': id,
         'name': name,

@@ -29,6 +29,7 @@ class _EditProformaInvoiceState extends State<EditProformaInvoice> {
   void initState() {
     super.initState();
     // Initialize fields with existing data
+    print(widget.proformaData);
     proformaNo = widget.proformaData['ProformaNo'];
     proformaDate = (widget.proformaData['ProformaDate'] as Timestamp).toDate();
     expiryDate = (widget.proformaData['ExpiryDate'] as Timestamp).toDate();
@@ -168,8 +169,10 @@ Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
                     onCustomerSelected: (customer) {
                       setState(() {
                         selectedCustomers = [customer];
-                      });
+                      },
+                      );
                     },
+                    proformaNo: proformaNo
                   );
                 },
                 icon: const Icon(Icons.person_add, color: Colors.black),
@@ -307,7 +310,9 @@ Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
                   icon: const Icon(Icons.visibility, color: Colors.blue),
                   onPressed: () async {
                     String proformaNo = product['ProformaNo'];
-                    List<Map<String, dynamic>> products = await fetchProducts(proformaNo);
+                    List<Map<String, dynamic>> products = await _fetchProducts(proformaNo);
+                    print("1");
+                    print(products);
 
                     showDialog(
                       context: context,
