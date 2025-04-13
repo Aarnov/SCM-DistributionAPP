@@ -44,26 +44,26 @@ void editCustomer({
 }) {
   showCustomerSelectionDialog(
     context: context,
-    searchController: TextEditingController(), // Temporary search controller
+    searchController: TextEditingController(),
     addCustomer: (id, name, mobile, email, billingCity, billingState, billingCountry, shippingCity, shippingState, shippingCountry, pancard, gstNo) async {
-      // Update the PartyId in ProformaMaster
+      // Update Firestore with the new PartyId
       await FirebaseFirestore.instance.collection('ProformaMaster').doc(proformaNo).update({
         'PartyId': id,
       });
 
-      // Pass the selected customer details back
+      // Pass the selected customer details back to the caller
       onCustomerSelected({
-        'id': id,
-        'name': name,
-        'mobile': mobile,
-        'email': email,
-        'billingCity': billingCity,
-        'billingState': billingState,
-        'billingCountry': billingCountry,
-        'shippingCity': shippingCity,
-        'shippingState': shippingState,
-        'shippingCountry': shippingCountry,
-        'pancard': pancard,
+        'PartyId': id,
+        'PartyName': name,
+        'MobileNo': mobile,
+        'Email': email,
+        'BillingVillageCity': billingCity,
+        'BillingState': billingState,
+        'BillingCountry': billingCountry,
+        'ShippingVillageCity': shippingCity,
+        'ShippingState': shippingState,
+        'ShippingCountry': shippingCountry,
+        'Pancard': pancard,
         'gstNo': gstNo,
       });
     },
@@ -89,7 +89,6 @@ Future<void> saveEditedProformaInvoice({
   required String paymentDays,
   required String additionalCharges,
   required String notes,
-  required List<Map<String, dynamic>> selectedProducts,
   required List<Map<String, dynamic>> selectedCustomers,
 }) async {
   if (selectedCustomers.isEmpty) {
@@ -100,7 +99,6 @@ Future<void> saveEditedProformaInvoice({
   try {
     await FirebaseFirestore.instance.collection('ProformaMaster').doc(proformaNo).update({
       'Customers': selectedCustomers,
-      'Products': selectedProducts,
       'BillDescription': billDescription.trim(),
       'ProformaDate': proformaDate,
       'ExpiryDate': expiryDate,

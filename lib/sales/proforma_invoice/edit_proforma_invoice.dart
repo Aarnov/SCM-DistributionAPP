@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'edit_proforma_functions.dart'; // Import the new functions
-import 'create_proforma_functions.dart'; // Import the customer selection dialog
+import 'package:distribution_management/sales/proforma_invoice/create_proforma_functions.dart';
+import 'package:distribution_management/sales/proforma_invoice/edit_proforma_functions.dart';
 
 class EditProformaInvoice extends StatefulWidget {
-  final Map<String, dynamic> proformaData; // Pass existing data
+  final Map<String, dynamic> proformaData;
 
   const EditProformaInvoice({super.key, required this.proformaData});
 
@@ -22,19 +22,29 @@ class _EditProformaInvoiceState extends State<EditProformaInvoice> {
   late String proformaNo;
   late DateTime proformaDate;
   late DateTime expiryDate;
-  late List<Map<String, dynamic>> selectedProducts;
-  late List<Map<String, dynamic>> selectedCustomers;
+  late List<Map<String, dynamic>> selectedProducts = [];
+
+  Map<String, dynamic>? selectedCustomer;
+  Map<String, dynamic>? customerDetails;
 
   @override
   void initState() {
     super.initState();
-    // Initialize fields with existing data
-    print(widget.proformaData);
     proformaNo = widget.proformaData['ProformaNo'];
     proformaDate = (widget.proformaData['ProformaDate'] as Timestamp).toDate();
     expiryDate = (widget.proformaData['ExpiryDate'] as Timestamp).toDate();
-    selectedProducts = List<Map<String, dynamic>>.from(widget.proformaData['Products'] ?? []);
-    selectedCustomers = List<Map<String, dynamic>>.from(widget.proformaData['Customers'] ?? []);
+
+    // Fetch products for the given ProformaNo
+    _fetchProducts(proformaNo).then((products) {
+      setState(() {
+        selectedProducts = products;
+      });
+    });
+
+    // Fetch customer details using PartyId
+    if (widget.proformaData['PartyId'] != null) {
+      _fetchCustomerDetails(widget.proformaData['PartyId']);
+    }
 
     _paymentDaysController = TextEditingController(text: widget.proformaData['PaymentinDays'].toString());
     _billDescriptionController = TextEditingController(text: widget.proformaData['BillDescription']);
@@ -42,14 +52,61 @@ class _EditProformaInvoiceState extends State<EditProformaInvoice> {
     _additionalChargesController = TextEditingController(text: widget.proformaData['AdditionalCharges'].toString());
   }
 
-Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
-  var snapshot = await FirebaseFirestore.instance
-      .collection('ProformaBillItem')
-      .where('ProformaNo', isEqualTo: proformaNo)
-      .get();
+  Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
+    try {
+      var snapshot = await FirebaseFirestore.instance
+          .collection('ProformaBillItem')
+          .where('ProformaNo', isEqualTo: proformaNo)
+          .get();
 
-  return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
-}
+      var products = snapshot.docs.map((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+        return {
+          'ProductId': data['ProductId'] ?? 'N/A',
+          'Quantity': data['Quantity'] ?? 0,
+          'PriceWithoutGST': data['PriceWithoutGST'] ?? 0.0,
+          'GSTPercent': data['GSTPercent'] ?? 0,
+          'Subtotal': data['Subtotal'] ?? 0.0,
+        };
+      }).toList();
+
+      print("Fetched Products: $products");
+      return products;
+    } catch (e) {
+      print("Error fetching products: $e");
+      return [];
+    }
+  }
+
+  Future<void> _fetchCustomerDetails(String partyId) async {
+    try {
+      var customerSnapshot = await FirebaseFirestore.instance
+          .collection('PartyMaster')
+          .doc(partyId)
+          .get();
+
+      if (customerSnapshot.exists) {
+        setState(() {
+          selectedCustomer = {
+            'PartyId': partyId,
+            'PartyName': customerSnapshot.data()?['PartyName'] ?? 'N/A',
+            'MobileNo': customerSnapshot.data()?['MobileNo'] ?? 'N/A',
+            'Email': customerSnapshot.data()?['Email'] ?? 'N/A',
+            'BillingVillageCity': customerSnapshot.data()?['BillingVillageCity'] ?? 'Unknown',
+            'BillingState': customerSnapshot.data()?['BillingState'] ?? 'Unknown',
+            'BillingCountry': customerSnapshot.data()?['BillingCountry'] ?? 'Unknown',
+          };
+          customerDetails = selectedCustomer;
+        });
+        print("Customer Details: $customerDetails");
+      } else {
+        print("Customer not found for PartyId: $partyId");
+      }
+    } catch (e) {
+      print("Error fetching customer details: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,39 +119,46 @@ Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Customer Section
               _buildCustomerSection(),
-
               const SizedBox(height: 16),
-
-              // Invoice Details Section
               _buildInvoiceDetailsSection(),
-
               const SizedBox(height: 16),
-
-              // Products Section
               _buildProductsSection(),
-
               const SizedBox(height: 16),
-
-              // Save Button
               ElevatedButton(
                 onPressed: () async {
-                  await FirebaseFirestore.instance.collection('ProformaMaster').doc(proformaNo).update({
-                    'Products': selectedProducts,
-                  });
-                  saveEditedProformaInvoice(
-                    context: context,
-                    proformaNo: proformaNo,
-                    proformaDate: proformaDate,
-                    expiryDate: expiryDate,
-                    billDescription: _billDescriptionController.text,
-                    paymentDays: _paymentDaysController.text,
-                    additionalCharges: _additionalChargesController.text,
-                    notes: _notesController.text,
-                    selectedProducts: selectedProducts,
-                    selectedCustomers: selectedCustomers,
-                  );
+                  try {
+                    // Ensure a customer is selected
+                    if (selectedCustomer == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Please select a customer before saving!")),
+                      );
+                      return;
+                    }
+
+                    // Save changes to Firestore
+                    await FirebaseFirestore.instance.collection('ProformaMaster').doc(proformaNo).update({
+                      'ProformaDate': proformaDate,
+                      'ExpiryDate': expiryDate,
+                      'BillDescription': _billDescriptionController.text.trim(),
+                      'PaymentinDays': int.tryParse(_paymentDaysController.text) ?? 0,
+                      'AdditionalCharges': double.tryParse(_additionalChargesController.text) ?? 0.0,
+                      'Notes': _notesController.text.trim(),
+                      'PartyId': selectedCustomer!['PartyId'], // Update PartyId
+                    });
+
+                    // Show success message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Proforma Invoice updated successfully!")),
+                    );
+
+      
+                  } catch (e) {
+                    print("Error updating Proforma Invoice: $e");
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Error updating Proforma Invoice: $e")),
+                    );
+                  }
                 },
                 child: const Text("Save Changes"),
               ),
@@ -122,64 +186,56 @@ Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
               ],
             ),
             const SizedBox(height: 12),
-
-            selectedCustomers.isEmpty
-                ? const Center(
-                    child: Text(
-                      "No customer selected",
-                      style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.bold),
-                    ),
-                  )
+            customerDetails == null
+                ? const Center(child: CircularProgressIndicator())
                 : Column(
                     children: [
                       ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         leading: CircleAvatar(
-                          radius: 24,
                           backgroundColor: Colors.blueAccent.withOpacity(0.2),
                           child: Text(
-                            selectedCustomers[0]['name']![0].toUpperCase(),
+                            (customerDetails!['PartyName'] ?? 'N/A')[0].toUpperCase(),
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ),
                         title: Text(
-                          selectedCustomers[0]['name']!,
+                          customerDetails!['PartyName'] ?? 'N/A',
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close, size: 18, color: Colors.redAccent),
-                          onPressed: () => setState(() => selectedCustomers.clear()),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Mobile: ${customerDetails!['MobileNo'] ?? 'N/A'}"),
+                            Text("Email: ${customerDetails!['Email'] ?? 'N/A'}"),
+                            Text("City: ${customerDetails!['BillingVillageCity'] ?? 'Unknown'}"),
+                            Text("State: ${customerDetails!['BillingState'] ?? 'Unknown'}"),
+                            Text("Country: ${customerDetails!['BillingCountry'] ?? 'Unknown'}"),
+                          ],
+                        ),
+                      ),
+                      const Divider(),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            editCustomer(
+                              context: context,
+                              proformaNo: proformaNo,
+                              onCustomerSelected: (customer) {
+                                setState(() {
+                                  selectedCustomer = customer;
+                                  customerDetails = customer;
+                                });
+                              },
+                            );
+                          },
+                          icon: const Icon(Icons.edit, size: 16),
+                          label: const Text("Edit Customer"),
                         ),
                       ),
                     ],
                   ),
-
-            const SizedBox(height: 12),
-
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black, style: BorderStyle.solid),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: TextButton.icon(
-                onPressed: () {
-                  editCustomer(
-                    context: context,
-                    onCustomerSelected: (customer) {
-                      setState(() {
-                        selectedCustomers = [customer];
-                      },
-                      );
-                    },
-                    proformaNo: proformaNo
-                  );
-                },
-                icon: const Icon(Icons.person_add, color: Colors.black),
-                label: const Text("Choose Customer",
-                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-              ),
-            ),
           ],
         ),
       ),
@@ -207,10 +263,7 @@ Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
               decoration: const InputDecoration(labelText: "Payment Terms (Days)"),
               onChanged: (value) {
                 setState(() {
-                  expiryDate = updateExpiryDate(
-                    proformaDate: proformaDate,
-                    paymentDays: value,
-                  );
+                  expiryDate = proformaDate.add(Duration(days: int.tryParse(value) ?? 0));
                 });
               },
             ),
@@ -252,26 +305,13 @@ Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
               ),
               child: TextButton.icon(
                 onPressed: () {
-                  showProductSelectionDialog(
-                    context: context,
-                    selectedProducts: selectedProducts,
-                    onProductSelected: (product) {
-                      setState(() {
-                        int index = selectedProducts.indexWhere((item) => item['id'] == product['id']);
-                        if (index != -1) {
-                          // Product already exists, update quantity
-                          selectedProducts[index]['quantity'] += product['quantity'];
-                        } else {
-                          // Add new product
-                          selectedProducts.add(product);
-                        }
-                      });
-                    },
-                  );
+                  // Add product selection logic here
                 },
                 icon: const Icon(Icons.add, color: Colors.black),
-                label: const Text("Add Product",
-                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                label: const Text(
+                  "Add Product",
+                  style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -290,51 +330,16 @@ Future<List<Map<String, dynamic>>> _fetchProducts(String proformaNo) async {
           DataColumn(label: Text("Quantity")),
           DataColumn(label: Text("Price Without GST")),
           DataColumn(label: Text("GST %")),
-          DataColumn(label: Text("GST Amount")),
-          DataColumn(label: Text("Selling Price With GST")),
           DataColumn(label: Text("Subtotal")),
-          DataColumn(label: Text("Actions")),
         ],
         rows: products.map((product) {
           return DataRow(
             cells: [
-              DataCell(Text(product['ProductId'] ?? '')),
-              DataCell(Text(product['Quantity'].toString())),
+              DataCell(Text(product['ProductId'] ?? 'N/A')),
+              DataCell(Text(product['Quantity']?.toString() ?? '0')),
               DataCell(Text("₹${product['PriceWithoutGST']?.toStringAsFixed(2) ?? '0.00'}")),
-              DataCell(Text("${product['GSTPercent']}%")),
-              DataCell(Text("₹${product['GSTAmount']?.toStringAsFixed(2) ?? '0.00'}")),
-              DataCell(Text("₹${product['SellingPriceWithGST']?.toStringAsFixed(2) ?? '0.00'}")),
+              DataCell(Text("${product['GSTPercent']?.toString() ?? '0'}%")),
               DataCell(Text("₹${product['Subtotal']?.toStringAsFixed(2) ?? '0.00'}")),
-              DataCell(
-                IconButton(
-                  icon: const Icon(Icons.visibility, color: Colors.blue),
-                  onPressed: () async {
-                    String proformaNo = product['ProformaNo'];
-                    List<Map<String, dynamic>> products = await _fetchProducts(proformaNo);
-                    print("1");
-                    print(products);
-
-                    showDialog(
-                      context: context,
-                      builder: (context) {
-                        return AlertDialog(
-                          title: Text("Products for Proforma No: $proformaNo"),
-                          content: SizedBox(
-                            width: double.maxFinite,
-                            child: _buildProductTable(products),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text("Close"),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
             ],
           );
         }).toList(),
